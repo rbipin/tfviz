@@ -1,0 +1,94 @@
+# tf-plan-template.yml — Azure DevOps YAML template for Terraform plan visualization
+# Usage: Reference this template from your pipeline using the `extends:` or `template:` keyword.
+#
+# Note: summary.html (GitHub Actions Summary tab) is generated but NOT used in Azure DevOps.
+# The Actions summary tab is GitHub-only. The artifact and PR comment are fully supported.
+#
+# Example pipeline:
+#   resources:
+#     repositories:
+#       - repository: infra-tools
+#         type: github
+#         name: your-org/infra-tools
+#         endpoint: github-connection
+#   extends:
+#     template: ado-templates/tf-plan-template.yml@infra-tools
+#     parameters:
+#       terraformDir: infra/environments/prod
+
+parameters:
+  - name: terraformDir
+    type: string
+    default: '.'
+  - name: toolsRepoResource
+    type: string
+    default: 'infra-tools'
+
+steps:
+  - checkout: self
+    displayName: Checkout calling repo
+
+  - checkout: ${{ parameters.toolsRepoResource }}
+    displayName: Checkout infra-tools repo
+
+  - task: TerraformInstaller@1
+    displayName: Install Terraform
+    inputs:
+      terraformVersion: latest
+
+  - bash: bash scripts/tf-plan.sh "${{ parameters.terraformDir }}"
+    displayName: Run terraform plan
+
+  - bash: node scripts/tf-report.js plan.json ./report-out --format=all
+    displayName: Generate HTML reports
+
+  - task: PublishPipelineArtifact@1
+    displayName: Publish plan report artifact
+    inputs:
+      targetPath: report-out/plan-report.html
+      artifact: TerraformPlanReport
+      publishLocation: pipeline
+
+  - bash: |
+      set -euo pipefail
+
+      COMMENT_FILE="report-out/pr-comment.html"
+      BYTE_LEN=$(wc -c < "$COMMENT_FILE")
+
+      if [ "$BUILD_REASON" != "PullRequest" ]; then
+        echo "Not a PR build — skipping PR comment."
+        exit 0
+      fi
+
+      ENDPOINT="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_apis/git/repositories/${BUILD_REPOSITORY_ID}/pullRequests/${SYSTEM_PULLREQUEST_PULLREQUESTID}/threads?api-version=7.0"
+
+      if [ "$BYTE_LEN" -lt 65000 ]; then
+        CONTENT=$(cat "$COMMENT_FILE")
+        # Escape for JSON (replace \ " newlines)
+        ESCAPED=$(printf '%s' "$CONTENT" | python3 -c "
+      import sys, json
+      content = sys.stdin.read()
+      print(json.dumps(content))
+      ")
+        BODY="{\"comments\":[{\"parentCommentId\":0,\"content\":${ESCAPED},\"commentType\":1}],\"status\":1}"
+      else
+        KB=$(echo "scale=1; $BYTE_LEN / 1024" | bc)
+        RUN_URL="${SYSTEM_COLLECTIONURI}${SYSTEM_TEAMPROJECT}/_build/results?buildId=${BUILD_BUILDID}"
+        MSG="**Terraform Plan** — report exceeds GitHub comment limit (${KB} KB). [Download the full report from the pipeline artifacts.](${RUN_URL})"
+        ESCAPED=$(printf '%s' "$MSG" | python3 -c "
+      import sys, json
+      content = sys.stdin.read()
+      print(json.dumps(content))
+      ")
+        BODY="{\"comments\":[{\"parentCommentId\":0,\"content\":${ESCAPED},\"commentType\":1}],\"status\":1}"
+      fi
+
+      curl -sf -X POST "$ENDPOINT" \
+        -H "Authorization: Bearer $(System.AccessToken)" \
+        -H "Content-Type: application/json" \
+        -d "$BODY"
+
+      echo "PR comment posted."
+    displayName: Post PR comment
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

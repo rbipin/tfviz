@@ -1,0 +1,157 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.4",
+  "variables": {
+    "region": { "value": "us-east-1" }
+  },
+  "planned_values": { "root_module": { "resources": [] } },
+  "resource_changes": [
+    {
+      "address": "aws_iam_role.app_runner",
+      "mode": "managed",
+      "type": "aws_iam_role",
+      "name": "app_runner",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "prod-app-runner-role",
+          "path": "/",
+          "description": "IAM role for application EC2 instances",
+          "assume_role_policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"ec2.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}",
+          "max_session_duration": 3600,
+          "tags": { "Name": "prod-app-runner-role", "Environment": "production" }
+        },
+        "after_unknown": { "id": true, "arn": true, "unique_id": true, "create_date": true }
+      }
+    },
+    {
+      "address": "aws_iam_role_policy.app_s3",
+      "mode": "managed",
+      "type": "aws_iam_role_policy",
+      "name": "app_s3",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "name": "app-s3-policy",
+          "role": "prod-app-runner-role",
+          "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:ListBucket\"],\"Resource\":[\"arn:aws:s3:::prod-assets\",\"arn:aws:s3:::prod-assets/*\"]}]}"
+        },
+        "after": {
+          "name": "app-s3-policy",
+          "role": "prod-app-runner-role",
+          "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\",\"s3:DeleteObject\",\"s3:ListBucket\"],\"Resource\":[\"arn:aws:s3:::prod-assets\",\"arn:aws:s3:::prod-assets/*\"]}]}"
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_iam_role_policy_attachment.ssm",
+      "mode": "managed",
+      "type": "aws_iam_role_policy_attachment",
+      "name": "ssm",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "role": "prod-app-runner-role",
+          "policy_arn": "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        },
+        "after_unknown": { "id": true }
+      }
+    },
+    {
+      "address": "aws_security_group.app",
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "name": "prod-app-sg",
+          "description": "App server security group",
+          "ingress": [
+            { "from_port": 80,  "to_port": 80,  "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"] },
+            { "from_port": 443, "to_port": 443, "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"] },
+            { "from_port": 22,  "to_port": 22,  "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"] }
+          ],
+          "egress": [{ "from_port": 0, "to_port": 0, "protocol": "-1", "cidr_blocks": ["0.0.0.0/0"] }],
+          "tags": { "Name": "prod-app-sg" }
+        },
+        "after": {
+          "name": "prod-app-sg",
+          "description": "App server security group",
+          "ingress": [
+            { "from_port": 80,  "to_port": 80,  "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"] },
+            { "from_port": 443, "to_port": 443, "protocol": "tcp", "cidr_blocks": ["0.0.0.0/0"] }
+          ],
+          "egress": [{ "from_port": 0, "to_port": 0, "protocol": "-1", "cidr_blocks": ["0.0.0.0/0"] }],
+          "tags": { "Name": "prod-app-sg" }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_security_group.bastion",
+      "mode": "managed",
+      "type": "aws_security_group",
+      "name": "bastion",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "prod-bastion-sg",
+          "description": "Bastion host security group — SSH from corporate IP only",
+          "ingress": [
+            { "from_port": 22, "to_port": 22, "protocol": "tcp", "cidr_blocks": ["203.0.113.0/24"] }
+          ],
+          "egress": [{ "from_port": 0, "to_port": 0, "protocol": "-1", "cidr_blocks": ["0.0.0.0/0"] }],
+          "tags": { "Name": "prod-bastion-sg", "Purpose": "bastion" }
+        },
+        "after_unknown": { "id": true, "arn": true, "vpc_id": true }
+      }
+    },
+    {
+      "address": "aws_iam_user.ci_deploy",
+      "mode": "managed",
+      "type": "aws_iam_user",
+      "name": "ci_deploy",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "ci-deploy-user",
+          "path": "/service/",
+          "force_destroy": false,
+          "tags": { "Purpose": "CI deployment — replaced by OIDC" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_iam_openid_connect_provider.github",
+      "mode": "managed",
+      "type": "aws_iam_openid_connect_provider",
+      "name": "github",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "url": "https://token.actions.githubusercontent.com",
+          "client_id_list": ["sts.amazonaws.com"],
+          "thumbprint_list": ["6938fd4d98bab03faadb97b34396831e3780aea1"],
+          "tags": { "Purpose": "GitHub Actions OIDC" }
+        },
+        "after_unknown": { "id": true, "arn": true }
+      }
+    }
+  ],
+  "configuration": { "root_module": { "resources": [] } }
+}

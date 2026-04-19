@@ -1,0 +1,176 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.7.5",
+  "variables": {
+    "region": { "value": "eu-west-1" },
+    "env": { "value": "staging" }
+  },
+  "planned_values": { "root_module": { "resources": [] } },
+  "resource_changes": [
+    {
+      "address": "aws_launch_template.app",
+      "mode": "managed",
+      "type": "aws_launch_template",
+      "name": "app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "image_id": "ami-0abcdef1234567890",
+          "instance_type": "t3.small",
+          "key_name": "prod-key",
+          "user_data": "IyEvYmluL2Jhc2gKZWNobyBoZWxsbw==",
+          "tags": { "Name": "app-lt", "Version": "3" }
+        },
+        "after": {
+          "image_id": "ami-0fedcba0987654321",
+          "instance_type": "t3.medium",
+          "key_name": "prod-key",
+          "user_data": "IyEvYmluL2Jhc2gKZWNobyB3b3JsZA==",
+          "tags": { "Name": "app-lt", "Version": "4" }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_autoscaling_group.app",
+      "mode": "managed",
+      "type": "aws_autoscaling_group",
+      "name": "app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "min_size": 1,
+          "max_size": 4,
+          "desired_capacity": 2,
+          "health_check_type": "ELB",
+          "health_check_grace_period": 300,
+          "tags": [{ "key": "Name", "value": "app-asg", "propagate_at_launch": true }]
+        },
+        "after": {
+          "min_size": 2,
+          "max_size": 10,
+          "desired_capacity": 4,
+          "health_check_type": "ELB",
+          "health_check_grace_period": 300,
+          "tags": [{ "key": "Name", "value": "app-asg", "propagate_at_launch": true }]
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_cloudwatch_metric_alarm.cpu_high",
+      "mode": "managed",
+      "type": "aws_cloudwatch_metric_alarm",
+      "name": "cpu_high",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "alarm_name": "app-cpu-high",
+          "comparison_operator": "GreaterThanOrEqualToThreshold",
+          "evaluation_periods": 2,
+          "metric_name": "CPUUtilization",
+          "namespace": "AWS/EC2",
+          "period": 120,
+          "statistic": "Average",
+          "threshold": 75,
+          "alarm_description": "Scale out when CPU exceeds 75%"
+        },
+        "after_unknown": { "id": true, "arn": true }
+      }
+    },
+    {
+      "address": "aws_cloudwatch_metric_alarm.cpu_low",
+      "mode": "managed",
+      "type": "aws_cloudwatch_metric_alarm",
+      "name": "cpu_low",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "alarm_name": "app-cpu-low",
+          "comparison_operator": "LessThanOrEqualToThreshold",
+          "evaluation_periods": 2,
+          "metric_name": "CPUUtilization",
+          "namespace": "AWS/EC2",
+          "period": 120,
+          "statistic": "Average",
+          "threshold": 20,
+          "alarm_description": "Scale in when CPU drops below 20%"
+        },
+        "after_unknown": { "id": true, "arn": true }
+      }
+    },
+    {
+      "address": "aws_lb.app",
+      "mode": "managed",
+      "type": "aws_lb",
+      "name": "app",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "name": "app-alb",
+          "internal": false,
+          "load_balancer_type": "application",
+          "idle_timeout": 60,
+          "enable_deletion_protection": false,
+          "tags": { "Environment": "staging" }
+        },
+        "after": {
+          "name": "app-alb",
+          "internal": false,
+          "load_balancer_type": "application",
+          "idle_timeout": 120,
+          "enable_deletion_protection": true,
+          "tags": { "Environment": "staging" }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_autoscaling_policy.scale_out",
+      "mode": "managed",
+      "type": "aws_autoscaling_policy",
+      "name": "scale_out",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "app-scale-out-simple",
+          "adjustment_type": "ChangeInCapacity",
+          "scaling_adjustment": 1,
+          "cooldown": 300,
+          "policy_type": "SimpleScaling"
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_autoscaling_policy.target_tracking",
+      "mode": "managed",
+      "type": "aws_autoscaling_policy",
+      "name": "target_tracking",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "app-target-tracking",
+          "policy_type": "TargetTrackingScaling",
+          "target_tracking_configuration": [{
+            "predefined_metric_specification": [{ "predefined_metric_type": "ASGAverageCPUUtilization" }],
+            "target_value": 50
+          }]
+        },
+        "after_unknown": { "id": true, "arn": true }
+      }
+    }
+  ],
+  "configuration": { "root_module": { "resources": [] } }
+}

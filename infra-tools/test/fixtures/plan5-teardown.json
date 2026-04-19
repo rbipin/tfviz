@@ -1,0 +1,163 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.8.0",
+  "variables": {
+    "region": { "value": "ap-southeast-1" },
+    "env": { "value": "staging" }
+  },
+  "planned_values": { "root_module": { "resources": [] } },
+  "resource_changes": [
+    {
+      "address": "aws_ecs_service.web",
+      "mode": "managed",
+      "type": "aws_ecs_service",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "staging-web",
+          "cluster": "arn:aws:ecs:ap-southeast-1:123456789012:cluster/staging",
+          "task_definition": "staging-web:42",
+          "desired_count": 2,
+          "launch_type": "FARGATE",
+          "platform_version": "LATEST",
+          "tags": { "Environment": "staging", "Service": "web" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_ecs_task_definition.web",
+      "mode": "managed",
+      "type": "aws_ecs_task_definition",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "family": "staging-web",
+          "cpu": "512",
+          "memory": "1024",
+          "network_mode": "awsvpc",
+          "requires_compatibilities": ["FARGATE"],
+          "container_definitions": "[{\"name\":\"web\",\"image\":\"123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/web:v1.2.3\",\"portMappings\":[{\"containerPort\":8080}]}]",
+          "tags": { "Environment": "staging" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_ecs_cluster.staging",
+      "mode": "managed",
+      "type": "aws_ecs_cluster",
+      "name": "staging",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "staging",
+          "capacity_providers": ["FARGATE", "FARGATE_SPOT"],
+          "tags": { "Environment": "staging" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_lb.staging",
+      "mode": "managed",
+      "type": "aws_lb",
+      "name": "staging",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "staging-alb",
+          "internal": false,
+          "load_balancer_type": "application",
+          "idle_timeout": 60,
+          "dns_name": "staging-alb-1234567890.ap-southeast-1.elb.amazonaws.com",
+          "tags": { "Environment": "staging" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_lb_target_group.web",
+      "mode": "managed",
+      "type": "aws_lb_target_group",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "staging-web-tg",
+          "port": 8080,
+          "protocol": "HTTP",
+          "target_type": "ip",
+          "health_check": [{ "path": "/health", "interval": 30, "timeout": 5 }],
+          "tags": { "Environment": "staging" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_ecr_repository.web",
+      "mode": "managed",
+      "type": "aws_ecr_repository",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "web",
+          "image_tag_mutability": "MUTABLE",
+          "force_delete": false,
+          "tags": { "Environment": "staging", "Service": "web" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_cloudwatch_log_group.web",
+      "mode": "managed",
+      "type": "aws_cloudwatch_log_group",
+      "name": "web",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "/ecs/staging/web",
+          "retention_in_days": 7,
+          "tags": { "Environment": "staging" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_service_discovery_private_dns_namespace.staging",
+      "mode": "managed",
+      "type": "aws_service_discovery_private_dns_namespace",
+      "name": "staging",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "staging.local",
+          "description": "Private DNS namespace for staging ECS services",
+          "tags": { "Environment": "staging" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    }
+  ],
+  "configuration": { "root_module": { "resources": [] } }
+}

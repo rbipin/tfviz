@@ -1,0 +1,278 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-mono); }
+  .root { padding: 1rem 0; }
+  .summary-bar { display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 0.5px solid; cursor: pointer; transition: opacity .15s; user-select: none; }
+  .pill.active { opacity: 1; }
+  .pill.inactive { opacity: 0.35; }
+  .pill-create { background: #eaf3de; color: #3b6d11; border-color: #97c459; }
+  .pill-update { background: #faeeda; color: #854f0b; border-color: #ef9f27; }
+  .pill-destroy { background: #fcebeb; color: #a32d2d; border-color: #f09595; }
+  .pill-replace { background: #fbeaf0; color: #993556; border-color: #ed93b1; }
+  @media (prefers-color-scheme: dark) {
+    .pill-create { background: #173404; color: #c0dd97; border-color: #3b6d11; }
+    .pill-update { background: #412402; color: #fac775; border-color: #854f0b; }
+    .pill-destroy { background: #501313; color: #f7c1c1; border-color: #a32d2d; }
+    .pill-replace { background: #4b1528; color: #f4c0d1; border-color: #993556; }
+  }
+  .resource-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); margin-bottom: 10px; overflow: hidden; }
+  .resource-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; user-select: none; }
+  .resource-header:hover { background: var(--color-background-secondary); }
+  .action-badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px; border: 0.5px solid; flex-shrink: 0; }
+  .badge-create { background: #eaf3de; color: #3b6d11; border-color: #97c459; }
+  .badge-update { background: #faeeda; color: #854f0b; border-color: #ef9f27; }
+  .badge-destroy { background: #fcebeb; color: #a32d2d; border-color: #f09595; }
+  .badge-replace { background: #fbeaf0; color: #993556; border-color: #ed93b1; }
+  @media (prefers-color-scheme: dark) {
+    .badge-create { background: #173404; color: #c0dd97; border-color: #3b6d11; }
+    .badge-update { background: #412402; color: #fac775; border-color: #854f0b; }
+    .badge-destroy { background: #501313; color: #f7c1c1; border-color: #a32d2d; }
+    .badge-replace { background: #4b1528; color: #f4c0d1; border-color: #993556; }
+  }
+  .resource-type { font-size: 12px; color: var(--color-text-secondary); flex-shrink: 0; }
+  .resource-name { font-size: 13px; font-weight: 500; color: var(--color-text-primary); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chevron { font-size: 10px; color: var(--color-text-tertiary); transition: transform .2s; flex-shrink: 0; }
+  .chevron.open { transform: rotate(90deg); }
+  .attr-list { border-top: 0.5px solid var(--color-border-tertiary); padding: 8px 0; }
+  .attr-row { display: grid; grid-template-columns: 200px 1fr; font-size: 12px; padding: 3px 14px; gap: 8px; }
+  .attr-key { color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .attr-val { font-family: var(--font-mono); white-space: pre-wrap; word-break: break-all; }
+  .val-add { color: #3b6d11; } @media (prefers-color-scheme: dark) { .val-add { color: #c0dd97; } }
+  .val-remove { color: #a32d2d; text-decoration: line-through; } @media (prefers-color-scheme: dark) { .val-remove { color: #f7c1c1; } }
+  .val-replace { color: #993556; } @media (prefers-color-scheme: dark) { .val-replace { color: #f4c0d1; } }
+  .val-known { color: var(--color-text-secondary); font-style: italic; }
+  .val-unchanged { color: var(--color-text-secondary); }
+  .change-indicator { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; flex-shrink: 0; vertical-align: middle; }
+  .ind-add { background: #639922; }
+  .ind-update { background: #ba7517; }
+  .ind-destroy { background: #e24b4a; }
+  .ind-replace { background: #d4537e; }
+  .ind-known { background: var(--color-border-secondary); }
+  .attr-separator { height: 1px; background: var(--color-border-tertiary); margin: 4px 14px; }
+  .plan-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 1rem; }
+  .plan-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); font-family: var(--font-sans); }
+  .plan-meta { font-size: 12px; color: var(--color-text-secondary); font-family: var(--font-sans); }
+  .no-results { font-size: 13px; color: var(--color-text-tertiary); padding: 1rem 0; font-family: var(--font-sans); }
+  .module-label { font-size: 11px; color: var(--color-text-tertiary); }
+</style>
+<div class="root">
+  <div class="plan-header">
+    <span class="plan-title">Terraform Plan</span>
+    <span class="plan-meta" id="plan-meta"></span>
+  </div>
+  <div class="summary-bar" id="summary-bar"></div>
+  <div id="resource-list"></div>
+</div>
+<script>
+const PLAN = [
+  {
+    action: "create",
+    type: "aws_vpc",
+    name: "module.networking.aws_vpc.main",
+    attrs: [
+      { key: "cidr_block", action: "add", next: "10.0.0.0/16" },
+      { key: "enable_dns_hostnames", action: "add", next: "true" },
+      { key: "enable_dns_support", action: "add", next: "true" },
+      { key: "tags.Name", action: "add", next: "prod-vpc" },
+      { key: "tags.Environment", action: "add", next: "production" },
+      { key: "id", action: "known_after_apply" },
+      { key: "arn", action: "known_after_apply" },
+    ]
+  },
+  {
+    action: "create",
+    type: "aws_subnet",
+    name: "module.networking.aws_subnet.public[0]",
+    attrs: [
+      { key: "vpc_id", action: "known_after_apply" },
+      { key: "cidr_block", action: "add", next: "10.0.1.0/24" },
+      { key: "availability_zone", action: "add", next: "us-east-1a" },
+      { key: "map_public_ip_on_launch", action: "add", next: "true" },
+      { key: "id", action: "known_after_apply" },
+    ]
+  },
+  {
+    action: "update",
+    type: "aws_security_group",
+    name: "aws_security_group.app_sg",
+    attrs: [
+      { key: "name", action: "unchanged", next: "app-sg" },
+      { key: "ingress.0.from_port", action: "unchanged", next: "443" },
+      { key: "ingress.0.cidr_blocks", action: "update", prev: '["0.0.0.0/0"]', next: '["10.0.0.0/8"]' },
+      { key: "egress.0.from_port", action: "unchanged", next: "0" },
+      { key: "tags.LastModified", action: "update", prev: "2024-01-10", next: "2025-03-20" },
+    ]
+  },
+  {
+    action: "destroy",
+    type: "aws_instance",
+    name: "aws_instance.legacy_worker",
+    attrs: [
+      { key: "ami", action: "remove", prev: "ami-0c55b159cbfafe1f0" },
+      { key: "instance_type", action: "remove", prev: "t2.micro" },
+      { key: "subnet_id", action: "remove", prev: "subnet-0a1b2c3d" },
+      { key: "tags.Name", action: "remove", prev: "legacy-worker" },
+      { key: "private_ip", action: "remove", prev: "10.0.2.45" },
+    ]
+  },
+  {
+    action: "replace",
+    type: "aws_db_instance",
+    name: "aws_db_instance.primary",
+    attrs: [
+      { key: "identifier", action: "unchanged", next: "prod-postgres" },
+      { key: "engine", action: "unchanged", next: "postgres" },
+      { key: "engine_version", action: "update", prev: "13.4", next: "15.4" },
+      { key: "instance_class", action: "update", prev: "db.t3.medium", next: "db.t3.large" },
+      { key: "allocated_storage", action: "unchanged", next: "100" },
+      { key: "multi_az", action: "update", prev: "false", next: "true" },
+      { key: "endpoint", action: "known_after_apply" },
+    ]
+  },
+  {
+    action: "update",
+    type: "aws_iam_role_policy",
+    name: "aws_iam_role_policy.app_policy",
+    attrs: [
+      { key: "name", action: "unchanged", next: "app-policy" },
+      { key: "policy", action: "update", prev: '{"Version":"2012-10-17","Effect":"Allow","Action":["s3:GetObject"]}', next: '{"Version":"2012-10-17","Effect":"Allow","Action":["s3:GetObject","s3:PutObject"]}' },
+    ]
+  }
+];
+
+const ACTION_META = {
+  create:  { label: "+ create",  badgeClass: "badge-create",  indClass: "ind-add",     pillClass: "pill-create"  },
+  update:  { label: "~ update",  badgeClass: "badge-update",  indClass: "ind-update",  pillClass: "pill-update"  },
+  destroy: { label: "- destroy", badgeClass: "badge-destroy", indClass: "ind-destroy", pillClass: "pill-destroy" },
+  replace: { label: "± replace", badgeClass: "badge-replace", indClass: "ind-replace", pillClass: "pill-replace" },
+};
+
+const counts = { create: 0, update: 0, destroy: 0, replace: 0 };
+PLAN.forEach(r => counts[r.action]++);
+
+const activeFilters = new Set(Object.keys(ACTION_META));
+
+function renderSummary() {
+  const bar = document.getElementById("summary-bar");
+  bar.innerHTML = "";
+  Object.entries(ACTION_META).forEach(([action, meta]) => {
+    if (!counts[action]) return;
+    const p = document.createElement("div");
+    p.className = `pill ${meta.pillClass} ${activeFilters.has(action) ? "active" : "inactive"}`;
+    p.innerHTML = `<span>${meta.label}</span><strong>${counts[action]}</strong>`;
+    p.onclick = () => { activeFilters.has(action) ? activeFilters.delete(action) : activeFilters.add(action); render(); };
+    bar.appendChild(p);
+  });
+  const total = PLAN.length;
+  const meta = document.getElementById("plan-meta");
+  meta.textContent = `${total} resource${total !== 1 ? "s" : ""} to change`;
+}
+
+const openState = {};
+
+function renderAttr(attr) {
+  const row = document.createElement("div");
+  row.className = "attr-row";
+  const keyEl = document.createElement("div");
+  keyEl.className = "attr-key";
+  keyEl.textContent = attr.key;
+  const valEl = document.createElement("div");
+  valEl.className = "attr-val";
+
+  if (attr.action === "add") {
+    valEl.innerHTML = `<span class="change-indicator ind-add"></span><span class="val-add">${esc(attr.next)}</span>`;
+  } else if (attr.action === "remove") {
+    valEl.innerHTML = `<span class="change-indicator ind-destroy"></span><span class="val-remove">${esc(attr.prev)}</span>`;
+  } else if (attr.action === "update") {
+    valEl.innerHTML = `<span class="change-indicator ind-update"></span><span class="val-remove">${esc(attr.prev)}</span>  <span style="color:var(--color-text-tertiary)">→</span>  <span class="val-add">${esc(attr.next)}</span>`;
+  } else if (attr.action === "known_after_apply") {
+    valEl.innerHTML = `<span class="change-indicator ind-known"></span><span class="val-known">(known after apply)</span>`;
+  } else {
+    valEl.innerHTML = `<span class="val-unchanged">${esc(attr.next)}</span>`;
+  }
+  row.appendChild(keyEl);
+  row.appendChild(valEl);
+  return row;
+}
+
+function esc(str) {
+  if (!str) return "";
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function renderCard(resource) {
+  const meta = ACTION_META[resource.action];
+  const card = document.createElement("div");
+  card.className = "resource-card";
+
+  const header = document.createElement("div");
+  header.className = "resource-header";
+
+  const badge = document.createElement("span");
+  badge.className = `action-badge ${meta.badgeClass}`;
+  badge.textContent = meta.label;
+
+  const type = document.createElement("span");
+  type.className = "resource-type";
+  type.textContent = resource.type;
+
+  const name = document.createElement("span");
+  name.className = "resource-name";
+  name.textContent = resource.name.replace(resource.type + ".", "");
+
+  const chevron = document.createElement("span");
+  chevron.className = `chevron ${openState[resource.name] ? "open" : ""}`;
+  chevron.textContent = "▶";
+
+  header.appendChild(badge);
+  header.appendChild(type);
+  header.appendChild(name);
+  header.appendChild(chevron);
+
+  const attrList = document.createElement("div");
+  attrList.className = "attr-list";
+  attrList.style.display = openState[resource.name] ? "block" : "none";
+
+  const changed = resource.attrs.filter(a => a.action !== "unchanged");
+  const unchanged = resource.attrs.filter(a => a.action === "unchanged");
+
+  changed.forEach(a => attrList.appendChild(renderAttr(a)));
+  if (unchanged.length > 0 && changed.length > 0) {
+    const sep = document.createElement("div");
+    sep.className = "attr-separator";
+    attrList.appendChild(sep);
+    unchanged.forEach(a => attrList.appendChild(renderAttr(a)));
+  } else if (unchanged.length > 0) {
+    unchanged.forEach(a => attrList.appendChild(renderAttr(a)));
+  }
+
+  header.onclick = () => {
+    openState[resource.name] = !openState[resource.name];
+    chevron.className = `chevron ${openState[resource.name] ? "open" : ""}`;
+    attrList.style.display = openState[resource.name] ? "block" : "none";
+  };
+
+  card.appendChild(header);
+  card.appendChild(attrList);
+  return card;
+}
+
+function render() {
+  renderSummary();
+  const list = document.getElementById("resource-list");
+  list.innerHTML = "";
+  const filtered = PLAN.filter(r => activeFilters.has(r.action));
+  if (filtered.length === 0) {
+    const msg = document.createElement("div");
+    msg.className = "no-results";
+    msg.textContent = "No resources match the selected filters.";
+    list.appendChild(msg);
+    return;
+  }
+  filtered.forEach(r => list.appendChild(renderCard(r)));
+}
+
+render();
+</script>

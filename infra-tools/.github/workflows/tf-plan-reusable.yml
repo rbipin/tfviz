@@ -1,0 +1,111 @@
+# tf-plan-reusable.yml — Reusable GitHub Actions workflow for Terraform plan visualization
+# Usage: Call this workflow from another workflow using the `uses:` keyword.
+#
+# Example caller:
+#   jobs:
+#     tf-plan:
+#       uses: your-org/infra-tools/.github/workflows/tf-plan-reusable.yml@main
+#       with:
+#         terraform_dir: infra/environments/prod
+#       secrets:
+#         TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+
+on:
+  workflow_call:
+    inputs:
+      terraform_dir:
+        description: 'Path to Terraform working directory'
+        required: false
+        default: '.'
+        type: string
+      tools_repo:
+        description: 'Repo containing infra-tools scripts (owner/repo@ref). Leave empty if scripts are in the calling repo.'
+        required: false
+        default: ''
+        type: string
+    secrets:
+      TF_API_TOKEN:
+        required: false
+
+jobs:
+  tf-plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout calling repo
+        uses: actions/checkout@v4
+
+      - name: Checkout infra-tools repo
+        if: ${{ inputs.tools_repo != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.tools_repo }}
+          path: .infra-tools
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        env:
+          TF_TOKEN_app_terraform_io: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Run terraform plan
+        run: bash scripts/tf-plan.sh "${{ inputs.terraform_dir }}"
+
+      - name: Generate HTML reports
+        run: node scripts/tf-report.js plan.json ./report-out --format=all
+
+      - name: Write Actions summary
+        if: always()
+        run: cat report-out/summary.html >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload plan artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan-report
+          path: report-out/plan-report.html
+          if-no-files-found: warn
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const commentFile = 'report-out/pr-comment.html';
+            const content = fs.readFileSync(commentFile, 'utf8');
+            const byteLen = Buffer.byteLength(content, 'utf8');
+            const MARKER = '<!-- tf-plan-report -->';
+
+            const { owner, repo } = context.repo;
+            const prNumber = context.payload.pull_request.number;
+
+            // Find and delete any previous tf-plan-report comment
+            const comments = await github.rest.issues.listComments({
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            for (const c of comments.data) {
+              if (c.body && c.body.includes(MARKER)) {
+                await github.rest.issues.deleteComment({ owner, repo, comment_id: c.id });
+              }
+            }
+
+            let body;
+            if (byteLen < 65000) {
+              body = MARKER + '\n' + content;
+            } else {
+              const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+              body = `${MARKER}\n**Terraform Plan** — report exceeds GitHub comment limit (${(byteLen/1024).toFixed(1)} KB). [Download the full report from the workflow artifacts.](${runUrl})`;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body,
+            });

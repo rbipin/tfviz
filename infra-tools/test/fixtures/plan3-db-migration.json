@@ -1,0 +1,171 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.8.1",
+  "variables": {
+    "region": { "value": "us-west-2" },
+    "db_engine_version": { "value": "15.4" }
+  },
+  "planned_values": { "root_module": { "resources": [] } },
+  "resource_changes": [
+    {
+      "address": "aws_db_instance.primary",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "primary",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete", "create"],
+        "before": {
+          "identifier": "prod-postgres-primary",
+          "engine": "postgres",
+          "engine_version": "13.12",
+          "instance_class": "db.t3.medium",
+          "allocated_storage": 100,
+          "storage_type": "gp2",
+          "multi_az": false,
+          "publicly_accessible": false,
+          "backup_retention_period": 7,
+          "deletion_protection": false,
+          "username": "dbadmin",
+          "port": 5432,
+          "tags": { "Name": "prod-postgres-primary", "Tier": "data" }
+        },
+        "after": {
+          "identifier": "prod-postgres-primary",
+          "engine": "postgres",
+          "engine_version": "15.4",
+          "instance_class": "db.t3.large",
+          "allocated_storage": 200,
+          "storage_type": "gp3",
+          "multi_az": true,
+          "publicly_accessible": false,
+          "backup_retention_period": 14,
+          "deletion_protection": true,
+          "username": "dbadmin",
+          "port": 5432,
+          "tags": { "Name": "prod-postgres-primary", "Tier": "data" }
+        },
+        "after_unknown": { "id": true, "arn": true, "endpoint": true, "hosted_zone_id": true, "resource_id": true }
+      }
+    },
+    {
+      "address": "aws_db_instance.replica",
+      "mode": "managed",
+      "type": "aws_db_instance",
+      "name": "replica",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete", "create"],
+        "before": {
+          "identifier": "prod-postgres-replica",
+          "engine": "postgres",
+          "engine_version": "13.12",
+          "instance_class": "db.t3.medium",
+          "allocated_storage": 100,
+          "storage_type": "gp2",
+          "publicly_accessible": false,
+          "tags": { "Name": "prod-postgres-replica", "Tier": "data" }
+        },
+        "after": {
+          "identifier": "prod-postgres-replica",
+          "engine": "postgres",
+          "engine_version": "15.4",
+          "instance_class": "db.t3.large",
+          "allocated_storage": 200,
+          "storage_type": "gp3",
+          "publicly_accessible": false,
+          "tags": { "Name": "prod-postgres-replica", "Tier": "data" }
+        },
+        "after_unknown": { "id": true, "arn": true, "endpoint": true, "replicate_source_db": true }
+      }
+    },
+    {
+      "address": "aws_db_parameter_group.postgres15",
+      "mode": "managed",
+      "type": "aws_db_parameter_group",
+      "name": "postgres15",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["create"],
+        "before": null,
+        "after": {
+          "name": "prod-postgres15-params",
+          "family": "postgres15",
+          "description": "Parameter group for PostgreSQL 15",
+          "parameter": [
+            { "name": "log_min_duration_statement", "value": "1000" },
+            { "name": "shared_preload_libraries", "value": "pg_stat_statements" },
+            { "name": "max_connections", "value": "500" }
+          ],
+          "tags": { "Name": "prod-postgres15-params" }
+        },
+        "after_unknown": { "id": true, "arn": true }
+      }
+    },
+    {
+      "address": "aws_db_parameter_group.postgres13",
+      "mode": "managed",
+      "type": "aws_db_parameter_group",
+      "name": "postgres13",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["delete"],
+        "before": {
+          "name": "prod-postgres13-params",
+          "family": "postgres13",
+          "description": "Parameter group for PostgreSQL 13",
+          "parameter": [
+            { "name": "log_min_duration_statement", "value": "2000" },
+            { "name": "max_connections", "value": "200" }
+          ],
+          "tags": { "Name": "prod-postgres13-params" }
+        },
+        "after": null,
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_db_subnet_group.main",
+      "mode": "managed",
+      "type": "aws_db_subnet_group",
+      "name": "main",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "name": "prod-db-subnet-group",
+          "description": "DB subnet group",
+          "subnet_ids": ["subnet-aaa111", "subnet-bbb222"],
+          "tags": { "Name": "prod-db-subnet-group" }
+        },
+        "after": {
+          "name": "prod-db-subnet-group",
+          "description": "DB subnet group for multi-AZ PostgreSQL",
+          "subnet_ids": ["subnet-aaa111", "subnet-bbb222", "subnet-ccc333"],
+          "tags": { "Name": "prod-db-subnet-group" }
+        },
+        "after_unknown": {}
+      }
+    },
+    {
+      "address": "aws_secretsmanager_secret_version.db_password",
+      "mode": "managed",
+      "type": "aws_secretsmanager_secret_version",
+      "name": "db_password",
+      "provider_name": "registry.terraform.io/hashicorp/aws",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "secret_id": "prod/postgres/password",
+          "version_stages": ["AWSCURRENT"]
+        },
+        "after": {
+          "secret_id": "prod/postgres/password",
+          "version_stages": ["AWSCURRENT"]
+        },
+        "after_unknown": { "secret_string": true, "version_id": true }
+      }
+    }
+  ],
+  "configuration": { "root_module": { "resources": [] } }
+}
