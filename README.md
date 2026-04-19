@@ -1,4 +1,4 @@
-# infra-tools — Terraform Plan Visualizer
+# ßTerraform Plan Visualizer
 
 ## Overview
 
